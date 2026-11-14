@@ -1,0 +1,45 @@
+{
+  "name": "dsh-theme-glass",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Light gray frosted-glass theme for DeepSeek Harness — 浅灰底 + 毛玻璃，无壁纸、无视频、无解码",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "theme",
+    "glass",
+    "frosted-glass",
+    "light-theme"
+  ],
+  "homepage": "https://github.com/joyous-coder/dsh-theme-glass#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joyous-coder/dsh-theme-glass.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joyous-coder/dsh-theme-glass/issues"
+  },
+  "license": "MIT",
+  "author": "joyous-coder",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}

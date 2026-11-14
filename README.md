@@ -1,0 +1,162 @@
+# dsh-theme-glass
+
+浅灰底 + 毛玻璃主题，为 DeepSeek Harness 的浅色主题设计。
+
+配色体系逐条移植自 [wallpaper-engine v1.4.2](https://github.com/elysia395/dsh-wallpaper-engine)
+的 `packages/glass/src/glass-css.js`（读源码移植，不是从打包产物猜的），
+但**删掉了壁纸**：没有图片、没有视频、没有解码、没有路由、没有 ffmpeg。
+
+## 体积
+
+| | 本插件 | wallpaper-engine |
+|---|---|---|
+| 客户端 JS | **62 KB** | 1880.5 KB |
+| 宿主子包 | 1 | 9 |
+| 首屏阻塞 | 62 KB | 1880 KB |
+
+## 安装
+
+DSH 支持直接从一个 GitHub 仓库安装（宿主走 pnpm 的 git shorthand）：
+
+```
+dsh plugin --profile desktop add https://github.com/joyous-coder/dsh-theme-glass
+```
+
+或者在「插件 → 安装」里填同一个 URL。
+
+**装完必须确认它在 `dsh.profile.bundles` 里** —— 只 `install_bundle` 不补
+`set_bundle` 的话，插件重启即消失（这个坑我们踩过）。
+
+本地开发用链接安装：
+
+```bash
+dsh plugin --profile desktop add link:/abs/path/to/dsh-theme-glass
+```
+
+## 卸载
+
+移除 profile `package.json` 里的依赖与 `dsh.profile.bundles` 条目即可。
+本插件只在 `body` 上挂一个 `data-theme-glass` 属性 + 一个 `<style>`，
+`ctx.effect` 的 cleanup 会把两者都摘掉，**不留任何残留**。
+
+## 它做了什么
+
+### 可读性下限（这是整套配方的地基）
+
+每个承载文字的面都写成：
+
+```css
+color-mix(in srgb,
+  <主题釉色>              calc(<floor> * 100%),
+  <玻璃色 @ alpha×(1−floor)>  calc((1 − <floor>) * 100%))
+```
+
+`color-mix` 在预乘空间按权重插值，权重会乘上操作数自身 alpha ⇒ 这条声明恰好等于
+「釉色 @floor 压在一个 alpha = 玻璃透明度的玻璃层之上」，于是：
+
+```
+有效 alpha = floor + a_glass × (1 − floor) ≥ floor
+```
+
+玻璃怎么调都不会把文字掉到不可读。浅色 floor = **0.45**，深色 **0.59**。
+
+### 材质常量（与源码逐字一致）
+
+| 常量 | 值 |
+|---|---|
+| 画布 | `#c9d2d4`（纯色，无渐变） |
+| `--tg-readability-floor` | **0.18**（源码是 0.45，见下） |
+| `--tg-glass-alpha` | `max(0.10, 0.25 − 滑杆/100 × 0.15)`，滑杆 32 → **0.202** |
+| `--tg-blur` | 44px |
+| `--tg-saturate` | 1.30（与模糊半径解耦的材质常量） |
+| `--tg-brightness` | 1.04 |
+| `--tg-border-alpha` | 0.35 |
+| 层权重 | layer-1 0.9 / layer-2 1.0 / layer-3 1.1 / 抬高按钮 1.15 / 浮层 1.3 / 气泡 0.8 / 代码块 0.8 / 行内代码 1.0 / 选中分段 1.15 / **侧栏 0.62** |
+| 釉光 | `0.05 → 0.02@38% → 0.03`（源码 0.10/0.03/0.05，见下） |
+| 侧栏釉色 | `#faf5ef`（略暖，抵消画布的蓝） |
+| 霜配方 | `blur(44px) saturate(1.30) brightness(1.04) contrast(1.01)` |
+| 厚玻璃阴影 | 外侧 `0 12px 40px rgba(0,0,0,.12)` + 三道内嵌高光 |
+| 强调色 | `#0c6e7e` |
+
+### 两处刻意偏离源码的值
+
+1. **可读性下限 0.45 → 0.18**。源码的 0.45 是为「壁纸可能是任意深色花图」兜底的；
+   本插件的画布是**恒定浅灰**，黑字对它本来就有 ~12:1 的对比度 ⇒ 不需要那么重的地板。
+   降到 0.18 换来的是真通透：面板能透出画布，而不是一层近乎实心的白。
+2. **釉光减半**。地板降下来之后，原来的釉光会把侧栏顶回发白（实测 +25 级）。
+
+以上两个值都是拿「截图 → 找最空块 → 量色」闭环对着 wallpaper-engine 的实机画面校准的，
+最终各面平均色差 **3.1 级**（≤5 即肉眼难辨）：
+
+| 部件 | 目标（壁纸版实测） | 本插件 | ΔL |
+|---|---|---|---|
+| 主内容区 | `#C9D2D4` | `#C9D2D4` | −0.8 |
+| 左侧栏 | `#E9EBEB` | `#E9EFEF` | +6.9 |
+| 新会话按钮 | `#F3F5F5` | `#EFF3F3` | −4.8 |
+| 选中会话行 | `#D1DFE3` | `#D0DFE2` | −1.5 |
+| 输入框 | `#C9D1D2` | `#C9D2D4` | +1.4 |
+
+### 移植过来的四个"血泪坑"
+
+1. **输入卡的模糊在 `::before`**，不在卡片自己身上。
+   `[data-composer-card]` 里有 `position:fixed` 后代，元素挂非 none 的
+   `backdrop-filter` 会成为 fixed 后代的包含块 ⇒ 那个按钮掉 ~522px。伪元素没有
+   DOM 后代，永远不会成为包含块。
+
+2. **侧栏不画右分割线**（显式 `border-right: none`）。
+   这一列已经是一整块玻璃，再画一条竖线就把它与会话区切成两半。必须是显式
+   `none` —— 壳层自己有一条读 `--dsw-alias-border-l3` 的边框，只删声明会让它回来。
+
+3. **标题栏用恒值釉光**，不用三段渐变。
+   渐变停靠点是百分比：同一句话装进 40px 高的顶栏与 1111px 高的侧栏，会算出
+   **差一倍的**白釉强度，交界处肉眼可见台阶。
+
+4. **浮层不玻璃化**，给不透明实底。
+   浮层背后是界面自己的正文，任何 < 100% 的覆盖都会让底下那行字透上来，读成
+   "两行字叠在一起"。
+
+5. **`backdrop-filter` 会改变 `position:fixed` 后代的包含块。**
+   侧栏里正好有一个 `position:fixed` 的切换键（宿主给它 `left:12px`）—— 霜一旦挂到
+   侧栏列上，这个键的定位基准就从视口变成侧栏列，于是它从顶栏掉进侧栏 logo 行。
+   解法照搬 wallpaper-engine 的 surface-plate：列本体只留底色，霜挂到**根级装饰叶节点**。
+
+6. **原生窗口按钮的颜色是从页面里读出来的。**
+   右上角三个按钮是 Electron 的 `titleBarOverlay`，宿主 preload 用一个隐藏探针 span
+   读 `--dsw-specific-sidebar-fill` 的计算值再推给主进程。该令牌若是**半透明**的，
+   页面标题栏带（叠灰画布）与原生覆盖层（叠窗口底色）就会算出两个不同的颜色，
+   右上角出现一块更白的矩形 —— 必须给标题栏带一个**不透明**色并只写给那个探针。
+
+7. **滚动条是原生 `::-webkit-scrollbar`，轨道透明。**
+   滑块颜色一旦比背景亮，就成了一条刺眼的白杠。用半透明中性灰，
+   并借 `--dsh-scrollbar-width` + `--dsh-scrollbar-thumb-border` 把它做成内缩胶囊。
+
+### 兜底
+
+- `@supports not (backdrop-filter)` → 近不透明 92%（模糊不可用时，半透明等于把文字放到花底上）
+- `@media (max-width: 1100px)` → 同样近不透明：窄视口侧栏变抽屉、用 transform 位移，
+  `backdrop-filter` 采样不到有效矩形
+
+## 开发提示
+
+整套样式是一个**模板字符串**。两个会静默炸掉的坑：
+
+- **注释里也不能出现反引号** —— 反引号会提前闭合模板字符串，`factory` 直接抛
+  `ReferenceError`，`module.exports` 根本没产出 ⇒ **界面样式全部消失**
+  （宿主一切正常、插件行显示 active、`node --check` 也通过，极难定位）。
+- **注释里也不能出现 `*/`** —— 例如写 `（_key_*/_keys_*）` 说明两个类名，
+  中间的 `*/` 会提前终止注释。
+
+改完建议用一个桩环境跑一遍：打桩 `window.__ModuleLoader__.load` 与 `document`，
+在 `<style>` 的 `textContent` setter 里截获生成的 CSS，然后校验
+**花括号平衡 / 注释配对 / 无游离 `*/` / 无反引号 / 无残留 `${`**。
+
+## 已知边界
+
+- **纯色画布上 `blur()` 是恒等变换** —— 模糊只在面板压住正文时真实可见
+  （输入框压消息、代码块吸顶条压滚动内容、浮层压正文）。这是物理事实。
+- 选择器依赖宿主 Vite CSS Module 的**类名后缀**（`_frame` / `_sidebarCol` /
+  `_centerCol`）与 `data-*` 锚点。DSH 大版本升级后若失效，效果会**降级但不会报错**
+  —— 令牌那半仍然生效（颜色、边框、圆角不变），只是模糊消失。
+- 只做**浅色**。深色主题的 token 在源码里是一整张对偶表（floor 0.59 + 深色釉色），
+  需要时按同一张公式补。
+
