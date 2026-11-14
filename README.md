@@ -153,18 +153,35 @@ color-mix(in srgb,
      叠在代码块 `#E8EAEB` 上算出 `#BBC1C2`，叠在画布 `#DDE1E2` 上算出 `#B4BBBC` ——
      两条并排的胶囊只差 7 级灰度、形状还一样，读作"两根说不清为什么不一样的灰棒"。
      ⇒ 滑块改用**不透明**色（`#B9BFC1`），彻底消掉这个随机差。
-   - **层级要靠粗细，不能靠颜色。** 页面滚动条 `10px + 2px 内缩`（可见 6px），
-     内容嵌套 `6px + 1px 内缩`（可见 4px）。实测改前两者都是 9px、完全分不开。
+   - **层级要靠粗细，不能靠颜色。** 页面滚动条 `16px`（左 8 / 右 2 内缩 ⇒ 可见 6px），
+     内容嵌套 `8px`（左 3 / 右 1 ⇒ 可见 4px）。实测改前两者都是 9px、完全分不开。
+   - **想让滑块离内容远一点，只能靠"左 border 大于右 border"。**
+     两侧对称地加 border 是**无效**的 —— 轨道变宽会从滚动容器的可用宽度里扣掉
+     同样的像素，内容跟着左移，间隙几乎不变（实测 10→14 / 2→4，滑块只整体左移 3px）。
 
    ⚠️ 覆盖嵌套滚动区**不能枚举元素名**。第一版按 `pre` / `md-code-block` 列了一遍，
    实测没命中 —— 代码块真正在滚的是它的**卡片容器**，不是 `pre`。改用不依赖元素名的写法：
 
    ```css
-   [data-conversation-scroll]      { --dsh-scrollbar-width: 10px; ... }  /* 容器自身：粗 */
-   [data-conversation-scroll] *    { --dsh-scrollbar-width:  6px; ... }  /* 里面一切：细 */
+   [data-conversation-scroll]      { --dsh-scrollbar-width: 16px; ... }  /* 容器自身：粗 */
+   [data-conversation-scroll] *    { --dsh-scrollbar-width:  8px; ... }  /* 里面一切：细 */
    ```
 
    两条特异度相同但 `*` 不匹配容器自身 ⇒ 天然分离，宿主改结构也不会失效。
+
+   ⚠️ 排查滚动条问题时**别用截图像素**：Windows 的叠加滚动条停止滚动后会淡出，
+   同一份样式有时量得到、有时量不到；内容区右侧还有 turn rail（一串刻度）会混进来。
+   可靠做法是把几何数据从页面里读出来：
+
+   ```js
+   const el = document.querySelector('[data-conversation-scroll]');
+   const cs = getComputedStyle(el);
+   document.title = `${el.offsetWidth - el.clientWidth} / ${cs.getPropertyValue('--dsh-scrollbar-width')}`;
+   ```
+
+   再经窗口标题读出（PowerShell 用 `GetWindowText`）。
+   **探针必须放在样式注入之后**（例如 `setTimeout(..., 1800)`）——放在前面读到的是
+   注入前的宿主默认值，会得出"声明完全没生效"的错误结论。
 
 8. **别把同一枚令牌同时当"底色"和"文字色"。**
    宿主的选项徽标就是这样一对：

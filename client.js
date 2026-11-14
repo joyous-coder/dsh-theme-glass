@@ -76,6 +76,7 @@ window.__ModuleLoader__.load({
     const ACCENT = '#0c6e7e';        // 强调色（浅底 5.9:1）
     const ACCENT_HOVER = '#0a5c69'; // 同色系深一档（hover 态）
 
+
     const SHEET_ID = 'theme-glass-sheet';
     const ATTR = 'data-theme-glass';
     // 侧栏收起/展开动画期间挂在 body 上的标记：用来临时摘掉本插件加在动画路径
@@ -740,16 +741,50 @@ body[${ATTR}] [class*="md-code-block"] pre > code {
    ⇒ 改用**不依赖元素名**的两级写法：
         · [data-conversation-scroll] 自身 = 粗档（页面滚动条）
         · [data-conversation-scroll] * = 细档（里面**任何**滚动区，不管是哪个元素）
-      两条选择器特异度相同、但 * 不匹配容器自身 ⇒ 天然分离，且以后宿主改结构也不会失效。 */
+      两条选择器特异度相同、但 * 不匹配容器自身 ⇒ 天然分离，且以后宿主改结构也不会失效。
+
+   ★ **给页面滚动条和内容之间留出空隙**（实测反馈「粗的滚动条能和左侧的加个间隙吗」）。
+     宿主只提供了 --dsh-scrollbar-track-margin，而它作用在 margin-block 上
+     —— **只管上下，管不到水平**。所以水平间隙要靠 thumb 的 border 来做：
+     thumb 是「border: Npx solid transparent + background-clip: content-box」，
+     可见部分 = 内容盒，border 那一圈天然透明 ⇒ border 越大，那边留白越多。
+
+     ⚠️ **两侧同时加 border 是无效的**（第一版就错在这）：
+        轨道变宽会从滚动容器的可用宽度里扣掉同样的像素，内容跟着左移，
+        于是「内容→滑块」的距离基本不变。实测：宽度 10→14、border 2→4，
+        滑块只整体左移 3px，间隙仍只有 2px 左右。
+     ⇒ 必须**左 border 明显大于右 border**，间隙才真正来自"滑块右移"而不是"轨道变宽"。
+
+     最终取值（两档都用同一条式子：可见 = 总宽 − 左 border − 右 border）：
+       · 页面级：16 − 8 − 2 = **6px** 可见，左侧间隙 **8px**，右侧 2px
+       · 嵌套级： 8 − 3 − 1 = **4px** 可见，左侧间隙 **3px**，右侧 1px
+
+     ⚠️ 排查这类问题**不要靠截图像素**：
+        · Windows 的叠加滚动条停止滚动后会淡出，同一份样式有时量得到、有时量不到
+        · 内容区右侧还有 turn rail（一串 tick），会和滑块混在一起
+        可靠做法是把几何数据从页面里读出来 —— 用 getComputedStyle 读
+        --dsh-scrollbar-width 与自己加的标记，再经 document.title 带出窗口标题。
+        实测结果（权威）：页面容器 16px、嵌套容器 8px、thumb #b9bfc1，全部按预期生效。
+     ⚠️⚠️ 探针必须放在**样式注入之后**（setTimeout），否则读到的是注入前的宿主默认值 ——
+        我第一次就是这么被骗的，误以为"声明完全没生效"，白折腾了很久。 */
 body[${ATTR}] [data-conversation-scroll] {
-  --dsh-scrollbar-width: 10px;
+  --dsh-scrollbar-width: 16px;
   --dsh-scrollbar-thumb-border: 2px;
   --dsh-scrollbar-track-margin: 2px;
 }
+/* 只作用于页面滚动条自己（不出现在 [data-conversation-scroll] * 里，
+   所以不会波及代码块那些细滚动条） */
+body[${ATTR}] [data-conversation-scroll]::-webkit-scrollbar-thumb {
+  border-left-width: 8px;
+}
 body[${ATTR}] [data-conversation-scroll] * {
-  --dsh-scrollbar-width: 6px;
+  --dsh-scrollbar-width: 8px;
   --dsh-scrollbar-thumb-border: 1px;
   --dsh-scrollbar-track-margin: 1px;
+}
+/* 嵌套档同样给左侧留白：可见 = 8−3−1 = 4px（和原来一样粗），左侧间隙 3px */
+body[${ATTR}] [data-conversation-scroll] *::-webkit-scrollbar-thumb {
+  border-left-width: 3px;
 }
 `,
 
