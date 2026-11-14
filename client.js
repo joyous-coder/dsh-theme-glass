@@ -124,11 +124,21 @@ body[${ATTR}] {
   --tg-saturate: 1.30;
   --tg-brightness: 1.04;
 
-  /* 边框 / 高光 / 阴影（源码的三个默认值） */
-  --tg-border-alpha: 0.35;
+  /* ── 边框 / 高光 / 阴影 ──────────────────────────────────────────────────
+     ★ 这里是「方案 A」的落点：把面板与背景的分离度**从填充色差转到边缘**。
+       起因：画布从 #c9d2d4 提到 #dde1e2 之后，
+         · 侧栏面板 vs 画布的分离度从 0.267 掉到 **0.169**（少 37%）
+       —— 玻璃靠"比背景亮"来读自己，背景一变亮，玻璃就弱一档。
+       但把画布压回去会重新变沉（用户实测「对话区看起来有点累」）。
+       ⇒ 改走 Win11 Fluent 那条路：**轻填充 + 明确边缘**，用描边和投影
+         把"这是一块浮起来的玻璃"表达出来，而不是靠填充色差硬撑。
+       实测收益：画布保持轻（阅读区不累），玻璃的存在感回来。 */
+  --tg-border-alpha: 0.48;              /* 原 0.35 —— 边缘在浅底上要更明确 */
   --tg-highlight: 0.32;
   --tg-shadow: 0.12;
-  --tg-border: rgba(180, 180, 180, var(--tg-border-alpha));
+  /* 描边色相从中性 180 调到**偏冷**（与画布 B−R=+5 同族）：
+     中性灰描边压在冷灰画布上会显脏；同族冷色描边读作"这一层的边"。 */
+  --tg-border: rgba(168, 180, 184, var(--tg-border-alpha));
 
   /* 釉光三档（浅色；比源码的 0.10/0.03/0.05 再淡一档 —— 地板降到 0.18 之后
      原来的釉光会把侧栏顶回发白） */
@@ -140,12 +150,16 @@ body[${ATTR}] {
   --tg-frost: blur(var(--tg-blur)) saturate(var(--tg-saturate))
               brightness(var(--tg-brightness)) contrast(1.01);
 
-  /* 厚玻璃阴影 —— 源码 [data-composer-card] 那组 */
+  /* 厚玻璃阴影 —— 源码 [data-composer-card] 那组。
+     ★ 方案 A 的一部分：单层 40px 的大扩散阴影在浅底上几乎读不出来，
+       改成「**贴近的接触阴影 + 环境阴影**」两层 —— 接触层贴着边缘画出一圈
+       实打实的分界（这才是玻璃"浮起来"的关键），环境层负责氛围。 */
   --tg-elevation:
     inset 0 1px 0 rgba(255, 255, 255, var(--tg-highlight)),
     inset 0 -1px 0 rgba(255, 255, 255, 0.08),
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
-    0 12px 40px rgba(0, 0, 0, var(--tg-shadow));
+    0 1px 2px rgba(40, 55, 60, 0.05),
+    0 10px 28px rgba(40, 55, 60, 0.10);
 
   /* 镜面釉 —— 上权重渐变把平涂的染色变成"湿玻璃"（源码同一道） */
   --tg-sheen: linear-gradient(180deg,
@@ -361,28 +375,34 @@ body[${ATTR}] {
                                  border-radius:999px}
      ⇒ 轨道本来就是**透明**的，能看到的几乎只有滑块本身。
 
-     ⚠️ 之前这里把滑块设成 color-mix(#ffffff 65%, #d4d4d4) = **#F0F0F0**。
-        在浅灰画布(#C9D2D4)/代码块(#DAE0E1)/侧栏(#ECF4F5)上，它比背景**更亮**，
-        而且宿主默认 thumb-border:0 ⇒ 5px 滑块把轨道整条填满
-        ⇒ 视觉上就是一条刺眼的白杠（实测那条就是 #F0F0F0、约 7px）。
-     改法：换成**半透明中性灰**（明暗两种底上都压得住，不会发白），
-     并借用宿主自己的两个旋钮把它做细：
-       --dsh-scrollbar-width: 10px    轨道留出空间
-       --dsh-scrollbar-thumb-border: 2px + background-clip:content-box
-         ⇒ 可见滑块 = 10-4 = 6px，两端 999px 圆角，看起来是一枚居中的胶囊 */
+     ⚠️ 曾经把滑块设成 color-mix(#ffffff 65%, #d4d4d4) = **#F0F0F0**。
+        在浅灰画布/代码块/侧栏上它比背景**更亮**，而且宿主默认 thumb-border:0
+        ⇒ 5px 滑块把轨道整条填满 ⇒ 视觉上就是一条刺眼的白杠。
+
+     ⚠️⚠️ 现在的滑块是**不透明**色，这是有原因的（实测反馈「滚动条三个看起来有点乱」）：
+        半透明滑块叠在不同底色上**必然**算出不同颜色 —— 同一个 rgba(92,106,110,.32)：
+          · 叠在代码块 #E8EAEB 上 → #BBC1C2
+          · 叠在画布   #DDE1E2 上 → #B4BBBC
+        两条并排的胶囊只差 7 级灰度，形状还一样 ⇒ 眼睛分不出哪个管什么，
+        只看到"两根说不清为什么不一样的灰棒"。改成不透明色就彻底消掉这个随机差。
+
+     分层粗细（配套手段）：**页面级粗、内容嵌套级细**，用粗细表达层级，
+     而不是指望颜色去区分（颜色区分在这里是做不到的，见上）。
+       · 页面/侧栏（primary）：10px + 2px 内缩 ⇒ 可见 6px
+       · 内容嵌套（代码块/表格/终端输出/文档预览）：6px + 1px 内缩 ⇒ 可见 4px */
   --dsh-scrollbar-width: 10px;
   --dsh-scrollbar-thumb-border: 2px;
   --dsh-scrollbar-track-margin: 2px;
 
-  /* 滑块：中性偏冷的半透明灰。用 alpha 而不是实色，才能同时适配
-     浅色画布、玻璃面板和代码块三种底色而不显脏。 */
-  --dsh-scrollbar-thumb: rgba(92, 106, 110, 0.32);
-  --dsh-scrollbar-thumb-hover: rgba(92, 106, 110, 0.52);
+  /* 不透明滑块：在代码块(#E8EAEB)与画布(#DDE1E2)上都够可见，且**同色**。
+     对比：vs #E8EAEB 约 42 级、vs #DDE1E2 约 31 级 —— 两边都读得出来。 */
+  --dsh-scrollbar-thumb: #b9bfc1;
+  --dsh-scrollbar-thumb-hover: #a3aaad;
   /* 宿主还有按层区分的一族令牌（侧栏 ._root 会把 l2 塞进 --dsh-scrollbar-thumb） */
-  --dsw-alias-scrollbar-bg-l1: rgba(92, 106, 110, 0.32) !important;
-  --dsw-alias-scrollbar-bg-l2: rgba(92, 106, 110, 0.32) !important;
-  --dsw-alias-scrollbar-hover-l1: rgba(92, 106, 110, 0.52) !important;
-  --dsw-alias-scrollbar-hover-l2: rgba(92, 106, 110, 0.52) !important;
+  --dsw-alias-scrollbar-bg-l1: #b9bfc1 !important;
+  --dsw-alias-scrollbar-bg-l2: #b9bfc1 !important;
+  --dsw-alias-scrollbar-hover-l1: #a3aaad !important;
+  --dsw-alias-scrollbar-hover-l2: #a3aaad !important;
 
   /* 宿主浮层的霜：宿主 Modal 遮罩本来就读 --dsw-mask-blur，
      主题把它定义成 none ⇒ 面板背后是没被模糊的画面。一次覆盖全部宿主浮层。 */
@@ -488,9 +508,14 @@ body[${ATTR}] .dshDesktopSidebarSurface {
      包含块，把切换键从顶栏拽下来）。 */
 body[${ATTR}] div:has(> [data-slot="sidebar"]) {
   border-radius: 0 var(--tg-sidebar-radius) var(--tg-sidebar-radius) 0 !important;
+  /* ★ 方案 A：侧栏面板是全屏最大的一块玻璃，也是分离度掉得最狠的那块
+     （画布提亮后 0.267 → 0.169）。这里给它补一圈 **1px 内描边环**
+     （inset shadow，不占布局、跟着圆角走），再把外投影从 12px 放宽到 18px。
+     边缘一明确，"这块是浮起来的玻璃"就不再依赖填充色差去表达。 */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    2px 0 12px rgba(52, 72, 78, 0.10) !important;
+    inset 0 0 0 1px rgba(168, 180, 184, 0.38),
+    3px 0 18px rgba(52, 72, 78, 0.13) !important;
   height: auto !important;
   margin-block: var(--tg-sidebar-gap) !important;
 }
@@ -661,9 +686,12 @@ body[${ATTR}] [class*="_bubble_"]:not([role="tooltip"]) {
   background-image: var(--tg-sheen) !important;
   -webkit-backdrop-filter: var(--tg-frost);
   backdrop-filter: var(--tg-frost);
+  /* 方案 A：气泡同样靠边缘表达"浮起来"（浅底上单靠填充差分不够） */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, var(--tg-highlight)),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+    inset 0 0 0 1px rgba(168, 180, 184, 0.30),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(40, 55, 60, 0.05);
 }
 /* 计划卡 / 交付卡 / 改动文件卡：只上平铺底，**不加釉不加霜**
    （源码实测：加霜会在大面积卡片上把整卡洗白） */
@@ -693,6 +721,35 @@ body[${ATTR}] [class*="_bannerWrap"] {
 body[${ATTR}] [class*="md-code-block"] pre,
 body[${ATTR}] [class*="md-code-block"] pre > code {
   background: transparent !important;
+}
+
+/* ── 滚动条分层粗细 ──────────────────────────────────────────────────────
+   实测反馈「这个滚动条三个看起来有点乱」。量出来的实况是：
+     代码块自己的滚动条 thumb  #BBC1C2  (9px, x=1392..1400)
+     页面滚动条       thumb  #B4BBBC  (9px, x=1408..1416)
+   两条并排、宽度一样、圆角一样，只差 7 级灰度 ⇒ 读作"两根不知为何不一样的灰棒"。
+
+   那一版滑块是半透明的（rgba(92,106,110,.32)），而**半透明叠在不同底色上必然
+   算出不同颜色**（代码块 #E8EAEB 上 →#BBC1C2，画布 #DDE1E2 上 →#B4BBBC）。
+   ⇒ 只靠调色**永远**对不齐。滑块已改成不透明 #B9BFC1（见 2.1 的令牌），同色。
+   ⇒ 层级改用**粗细**表达：页面级 10px（可见 6px），内容嵌套级 6px（可见 4px）。
+
+   ⚠️ **不能枚举嵌套滚动容器。** 第一版按 pre / md-code-block / _tableScroll 列了一遍，
+      实测**没命中**：代码块真正在滚的不是 pre 而是它的卡片容器 —— 量出来代码块那条
+      仍是页面级的 10px（设备像素 9px），而页面那条也是 9px，粗细完全没分开。
+   ⇒ 改用**不依赖元素名**的两级写法：
+        · [data-conversation-scroll] 自身 = 粗档（页面滚动条）
+        · [data-conversation-scroll] * = 细档（里面**任何**滚动区，不管是哪个元素）
+      两条选择器特异度相同、但 * 不匹配容器自身 ⇒ 天然分离，且以后宿主改结构也不会失效。 */
+body[${ATTR}] [data-conversation-scroll] {
+  --dsh-scrollbar-width: 10px;
+  --dsh-scrollbar-thumb-border: 2px;
+  --dsh-scrollbar-track-margin: 2px;
+}
+body[${ATTR}] [data-conversation-scroll] * {
+  --dsh-scrollbar-width: 6px;
+  --dsh-scrollbar-thumb-border: 1px;
+  --dsh-scrollbar-track-margin: 1px;
 }
 `,
 
