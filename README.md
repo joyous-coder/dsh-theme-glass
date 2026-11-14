@@ -130,6 +130,16 @@ color-mix(in srgb,
    滑块颜色一旦比背景亮，就成了一条刺眼的白杠。用半透明中性灰，
    并借 `--dsh-scrollbar-width` + `--dsh-scrollbar-thumb-border` 把它做成内缩胶囊。
 
+8. **别把同一枚令牌同时当"底色"和"文字色"。**
+   宿主的选项徽标就是这样一对：
+   `background: var(--dsw-specific-sidebar-nav-item-active-accent)` 配
+   `color: var(--dsw-alias-button-info-fill)`。两个都设成强调色 ⇒
+   **青底青字，文字完全隐形**（实测：底色 `#0C6E7E`，块内零个深色像素）。
+   宿主浅色主题的默认配法是「**浅**底 + **深**字」（`deepseek-100` 底 / `deepseek-500` 字）——
+   照抄那条思路即可：底色取强调色的浅色调（`color-mix(accent 16%, white)`，对比度约 4.7:1）。
+
+   `tools/audit-tokens.cjs` 会自动扫出这类撞色。
+
 ### 兜底
 
 - `@supports not (backdrop-filter)` → 近不透明 92%（模糊不可用时，半透明等于把文字放到花底上）

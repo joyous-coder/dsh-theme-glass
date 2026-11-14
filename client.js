@@ -269,7 +269,23 @@ body[${ATTR}] {
   --dsw-alias-brand-text: ${ACCENT} !important;
   --dsw-alias-state-business-primary: ${ACCENT} !important;
   --dsw-alias-trajectory-accent: ${ACCENT} !important;
-  --dsw-specific-sidebar-nav-item-active-accent: ${ACCENT} !important;
+
+  /* ⚠️⚠️ **这一枚是「徽标的底色」，不是强调色本身** —— 设成强调色会让文字隐形。
+     宿主里它只有**一个**消费者（dsh-client-ui-user-questions 的选项徽标）：
+       ._badge{ background: var(--dsw-specific-sidebar-nav-item-active-accent);
+                color:    var(--dsw-alias-button-info-fill); }
+     而 --dsw-alias-button-info-fill 在本主题里 = 强调色。
+     ⇒ 两个都设成强调色 ⇒ **青底青字**，徽标变成一块纯色方块、字完全看不见
+       （实测：底色 #0C6E7E，块内亮度最低 90、零个深色像素，确认无可见文字）。
+
+     宿主浅色主题的默认配法是「**浅**底 + **深**字」：
+       --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-deepseek-100)   ← 浅蓝底
+       --dsw-alias-button-info-fill:                    var(--dsw-static-deepseek-500)   ← 中蓝字
+     ⇒ 这里照抄那条思路：底色取强调色的**浅色调**，文字仍是强调色。
+        16% 强调色 + 84% 白 ≈ #D8E8EA，与 #0C6E7E 的对比度约 **4.7:1**（11px 粗体够用）。 */
+  --dsw-specific-sidebar-nav-item-active-accent:
+    color-mix(in srgb, ${ACCENT} 16%, #ffffff) !important;
+
   --dsw-alias-interactive-bg-hover: color-mix(in srgb, ${ACCENT} 14%, transparent) !important;
   --dsw-alias-interactive-bg-hover-accent: color-mix(in srgb, ${ACCENT} 18%, transparent) !important;
 
